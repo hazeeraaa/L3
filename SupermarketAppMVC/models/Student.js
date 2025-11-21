@@ -53,6 +53,16 @@ const Product = {
 			callback(null, { affectedRows: result.affectedRows });
 		});
 	}
+
+	// Reduce quantity of a product atomically (ensures quantity doesn't go negative)
+	reduceQuantity(id, amount, callback) {
+		const sql = 'UPDATE products SET quantity = quantity - ? WHERE id = ? AND quantity >= ?';
+		db.query(sql, [amount, id, amount], function (err, result) {
+			if (err) return callback(err);
+			if (result.affectedRows === 0) return callback(new Error('Insufficient stock'));
+			callback(null, { affectedRows: result.affectedRows });
+		});
+	}
 };
 
 module.exports = Product;
