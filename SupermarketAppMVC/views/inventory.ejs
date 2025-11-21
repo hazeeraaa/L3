@@ -16,12 +16,25 @@
         </button>
         <div class="collapse navbar-collapse" id="collapsibleNavbar">
           <ul class="navbar-nav">
+            <% if (user && user.role === 'admin') { %>
             <li class="nav-item">
               <a class="nav-link" href="/addProduct">Add Product</a>
-            </li> 
+            </li>
+            <% } %>
+            <% if (user && user.role !== 'admin') { %>
+            <li class="nav-item">
+              <a class="nav-link" href="/cart">View Cart</a>
+            </li>
+            <% } %>
+            <% if (user) { %>
             <li class="nav-item">
               <a class="nav-link" href="/logout">Logout</a>
-            </li> 
+            </li>
+            <% } else { %>
+            <li class="nav-item">
+              <a class="nav-link" href="/login">Login</a>
+            </li>
+            <% } %>
           </ul>
         </div>
       </div>
@@ -50,15 +63,17 @@
     <br>
     <div class="text-center"><h2>Products from Supermarket App Database</h2></div>
     <br>
-    <table class="table table-hover small text-center">
+        <table class="table table-hover small text-center">
       <thead>
           <tr>
             <th width="100">Product Name</th>
             <th width="100">Product Image</th>
             <th width="50">Quantity</th>
             <th width="50">Price</th>
-            <th width="50">Edit</th>
-            <th width="50">Delete</th>
+                <% if (user && user.role === 'admin') { %>
+                <th width="50">Edit</th>
+                <th width="50">Delete</th>
+                <% } %>
           </tr>
       </thead>
       <tbody>
@@ -68,10 +83,12 @@
             <td><img src = "/images/<%= products[i].image %>" width="20%"></td>
             <td><%= products[i].quantity %></td>
             <td>$<%= products[i].price.toFixed(2) %></td>
-            <!-- Edit Link -->
+            <!-- Edit/Delete only visible to admin -->
+            <% if (user && user.role === 'admin') { %>
             <td><a href="/updateProduct/<%= products[i].id %>">Edit</a></td>
             <!-- Delete Link -->
             <td><a href="/deleteProduct/<%= products[i].id %>" onclick="return confirm('Are you sure you want to delete this product?')">Delete</a></td>
+            <% } %>
           </tr>
         <% } %>
       </tbody>

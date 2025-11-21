@@ -51,11 +51,18 @@ app.use((req, res, next) => {
 // Root landing page - render with res.locals so templates can access session user
 app.get('/', (req, res) => res.render('index'));
 
+// Simple auth guard for routes that require a logged-in user
+function requireLogin(req, res, next) {
+    if (!req.session || !req.session.user) {
+        if (req.flash) req.flash('error', 'Please login to continue');
+        return res.redirect('/login');
+    }
+    next();
+}
+
 // Inventory (list products)
 app.get('/inventory', (req, res) => ProductController.list(req, res));
 
-// Shopping (customer-facing)
-app.get('/shopping', (req, res) => ProductController.shopping(req, res));
 
 // Show a single product
 app.get('/product/:id', (req, res) => ProductController.getById(req, res));
@@ -75,10 +82,12 @@ app.get('/logout', (req, res) => AuthController.logout(req, res));
 // Add a new product (file upload handled by multer)
 app.post('/addProduct', upload.single('image'), (req, res) => ProductController.add(req, res));
 
-// Cart & checkout routes
-app.post('/add-to-cart/:id', (req, res) => ProductController.addToCart(req, res));
-app.get('/cart', (req, res) => ProductController.showCart(req, res));
-app.post('/checkout', (req, res) => ProductController.checkout(req, res));
+// Cart & checkout routes (require login)
+app.post('/add-to-cart/:id', requireLogin, (req, res) => ProductController.addToCart(req, res));
+app.get('/cart', requireLogin, (req, res) => ProductController.showCart(req, res));
+app.post('/cart/update/:id', requireLogin, (req, res) => ProductController.updateCartItem(req, res));
+app.post('/cart/remove/:id', requireLogin, (req, res) => ProductController.removeFromCart(req, res));
+app.post('/checkout', requireLogin, (req, res) => ProductController.checkout(req, res));
 
 // Render update product form
 app.get('/updateProduct/:id', (req, res) => ProductController.editForm(req, res));

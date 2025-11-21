@@ -14,9 +14,9 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="collapsibleNavbar">
-        <ul class="navbar-nav">
+          <ul class="navbar-nav">
           <li class="nav-item">
-            <a class="nav-link" href="/shopping">Shop</a>
+            <a class="nav-link" href="/inventory">Products</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/cart">View Cart</a>
@@ -52,9 +52,11 @@
         <thead>
           <tr>
             <th>Product</th>
+            <th>Image</th>
             <th>Price</th>
             <th>Quantity</th>
             <th>Total</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -63,8 +65,19 @@
             <tr>
                 <td><%= cart[i].productName %></td>
                 <td><img src="/images/<%= cart[i].image %>" width="80" class="img-thumbnail"></td>
-                <td><%= cart[i].quantity %></td>
+                <td>$<%= cart[i].price.toFixed(2) %></td>
+                <td>
+                  <form action="/cart/update/<%= cart[i].id %>" method="POST" class="d-inline">
+                    <input type="number" name="quantity" value="<%= cart[i].quantity %>" min="1" class="form-control d-inline" style="width:100px; display:inline-block;">
+                    <button class="btn btn-sm btn-primary" type="submit">Update</button>
+                  </form>
+                </td>
                 <td>$<%= (cart[i].price * cart[i].quantity).toFixed(2) %></td>
+                <td>
+                  <form action="/cart/remove/<%= cart[i].id %>" method="POST">
+                    <button class="btn btn-sm btn-danger" type="submit">Remove</button>
+                  </form>
+                </td>
             </tr>
             <% total += cart[i].price * cart[i].quantity; %>
           <% }; %>
@@ -73,7 +86,7 @@
       <h4>Total: $<%= total.toFixed(2) %></h4>
 
       <div class="mt-4">
-        <a href="/shopping" class="btn btn-secondary">Back to Shopping</a>
+        <a href="/inventory" class="btn btn-secondary">Back to Products</a>
         <form action="/checkout" method="POST" style="display:inline-block; margin-left:10px;">
           <button type="submit" class="btn btn-success">Checkout</button>
         </form>

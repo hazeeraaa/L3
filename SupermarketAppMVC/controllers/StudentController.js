@@ -78,17 +78,7 @@ const ProductController = {
 		});
 	},
 
-	// Shopping page for customers (renders `shopping` view)
-	shopping(req, res) {
-		Product.getAllProducts(function (err, products) {
-			if (err) {
-				console.error('Error fetching products for shopping:', err);
-				return res.status(500).send('Error retrieving products');
-			}
-			const user = req.session && req.session.user ? req.session.user : null;
-			res.render('shopping', { products, user });
-		});
-	},
+
 
 	// Add an item to session cart
 	addToCart(req, res) {
@@ -99,16 +89,65 @@ const ProductController = {
 				console.error('Error adding to cart:', err);
 				return res.status(400).send('Product not found');
 			}
+			// basic availability check
+			if (product.quantity < qty) {
+				if (req.flash) req.flash('error', `Only ${product.quantity} unit(s) available for ${product.productName}`);
+				return res.redirect(`/product/${id}`);
+			}
 			if (!req.session.cart) req.session.cart = [];
 			// check if already in cart
 			const existing = req.session.cart.find(it => it.id == product.id);
 			if (existing) {
-				existing.quantity += qty;
+				// ensure not exceeding stock
+				const newQty = existing.quantity + qty;
+				if (newQty > product.quantity) {
+					if (req.flash) req.flash('error', `Cannot add ${qty} more. Only ${product.quantity - existing.quantity} left`);
+					return res.redirect(`/product/${id}`);
+				}
+				existing.quantity = newQty;
 			} else {
 				req.session.cart.push({ id: product.id, productName: product.productName, price: product.price, image: product.image, quantity: qty });
 			}
 			res.redirect('/cart');
 		});
+	},
+
+	// Update an item quantity in the cart
+	updateCartItem(req, res) {
+		const id = req.params.id;
+		const qty = Number(req.body.quantity || 1);
+		if (qty <= 0) {
+			if (req.flash) req.flash('error', 'Quantity must be at least 1');
+			return res.redirect('/cart');
+		}
+		Product.getProductById(id, function (err, product) {
+			if (err || !product) {
+				if (req.flash) req.flash('error', 'Product not found');
+				return res.redirect('/cart');
+			}
+			if (qty > product.quantity) {
+				if (req.flash) req.flash('error', `Only ${product.quantity} unit(s) available`);
+				return res.redirect('/cart');
+			}
+			if (!req.session.cart) req.session.cart = [];
+			const existing = req.session.cart.find(it => it.id == id);
+			if (!existing) {
+				if (req.flash) req.flash('error', 'Item not in cart');
+				return res.redirect('/cart');
+			}
+			existing.quantity = qty;
+			if (req.flash) req.flash('success', 'Cart updated');
+			res.redirect('/cart');
+		});
+	},
+
+	// Remove an item from the cart
+	removeFromCart(req, res) {
+		const id = req.params.id;
+		if (!req.session.cart) req.session.cart = [];
+		req.session.cart = req.session.cart.filter(it => it.id != id);
+		if (req.flash) req.flash('success', 'Item removed from cart');
+		res.redirect('/cart');
 	},
 
 	// Show cart contents
@@ -132,7 +171,7 @@ const ProductController = {
 				// all processed
 				req.session.cart = [];
 				if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
-				return res.redirect('/shopping');
+				return res.redirect('/inventory');
 			}
 			const item = cart[index];
 			Product.reduceQuantity(item.id, item.quantity, function (err, info) {
