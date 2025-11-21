@@ -78,6 +78,77 @@ const ProductController = {
 		});
 	},
 
+	// Shopping page for customers (renders `shopping` view)
+	shopping(req, res) {
+		Product.getAllProducts(function (err, products) {
+			if (err) {
+				console.error('Error fetching products for shopping:', err);
+				return res.status(500).send('Error retrieving products');
+			}
+			const user = req.session && req.session.user ? req.session.user : null;
+			res.render('shopping', { products, user });
+		});
+	},
+
+	// Add an item to session cart
+	addToCart(req, res) {
+		const id = req.params.id;
+		const qty = Number(req.body.quantity || 1);
+		Product.getProductById(id, function (err, product) {
+			if (err || !product) {
+				console.error('Error adding to cart:', err);
+				return res.status(400).send('Product not found');
+			}
+			if (!req.session.cart) req.session.cart = [];
+			// check if already in cart
+			const existing = req.session.cart.find(it => it.id == product.id);
+			if (existing) {
+				existing.quantity += qty;
+			} else {
+				req.session.cart.push({ id: product.id, productName: product.productName, price: product.price, image: product.image, quantity: qty });
+			}
+			res.redirect('/cart');
+		});
+	},
+
+	// Show cart contents
+	showCart(req, res) {
+		const cart = req.session.cart || [];
+		const user = req.session && req.session.user ? req.session.user : null;
+		res.render('cart', { cart, user });
+	},
+
+	// Checkout: reduce quantity in DB, clear cart on success
+	checkout(req, res) {
+		const cart = req.session.cart || [];
+		if (cart.length === 0) {
+			if (req.flash) req.flash('error', 'Cart is empty');
+			return res.redirect('/cart');
+		}
+
+		// Process each item sequentially to ensure stock availability
+		const processNext = (index) => {
+			if (index >= cart.length) {
+				// all processed
+				req.session.cart = [];
+				if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
+				return res.redirect('/shopping');
+			}
+			const item = cart[index];
+			Product.reduceQuantity(item.id, item.quantity, function (err, info) {
+				if (err) {
+					console.error('Checkout error on item:', item.id, err);
+					if (req.flash) req.flash('error', `Insufficient stock for ${item.productName}`);
+					return res.redirect('/cart');
+				}
+				// continue to next
+				processNext(index + 1);
+			});
+		};
+
+		processNext(0);
+	},
+
 	// Delete a product by ID
 	delete(req, res) {
 		const id = req.params.id;
@@ -92,3 +163,4 @@ const ProductController = {
 };
 
 module.exports = ProductController;
+
