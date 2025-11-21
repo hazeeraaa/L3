@@ -31,6 +31,20 @@
   <!-- Cart Content -->
   <div class="container">
     <h2 class="mt-4">Shopping Cart</h2>
+    <% if (messages && messages.length) { %>
+      <div class="alert alert-success">
+        <% messages.forEach(function(m){ %>
+          <div><%= m %></div>
+        <% }) %>
+      </div>
+    <% } %>
+    <% if (errors && errors.length) { %>
+      <div class="alert alert-danger">
+        <% errors.forEach(function(e){ %>
+          <div><%= e %></div>
+        <% }) %>
+      </div>
+    <% } %>
     <% if (cart.length === 0) { %>
       <p>Your cart is empty.</p>
     <% } else { %>
@@ -60,6 +74,9 @@
 
       <div class="mt-4">
         <a href="/shopping" class="btn btn-secondary">Back to Shopping</a>
+        <form action="/checkout" method="POST" style="display:inline-block; margin-left:10px;">
+          <button type="submit" class="btn btn-success">Checkout</button>
+        </form>
       </div>
     <% } %>
   </div>

@@ -28,6 +28,20 @@
     </nav>
 
   <div class="container">
+    <% if (messages && messages.length) { %>
+      <div class="alert alert-success">
+        <% messages.forEach(function(m){ %>
+          <div><%= m %></div>
+        <% }) %>
+      </div>
+    <% } %>
+    <% if (errors && errors.length) { %>
+      <div class="alert alert-danger">
+        <% errors.forEach(function(e){ %>
+          <div><%= e %></div>
+        <% }) %>
+      </div>
+    <% } %>
     <p>Welcome, <%= user.username %> (<%= user.role %>)</p>
     <br>
     <div class="text-center"><h2>Products from Supermarket</h2></div>
