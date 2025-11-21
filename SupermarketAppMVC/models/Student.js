@@ -52,7 +52,7 @@ const Product = {
 			if (err) return callback(err);
 			callback(null, { affectedRows: result.affectedRows });
 		});
-	}
+	},
 
 	// Reduce quantity of a product atomically (ensures quantity doesn't go negative)
 	reduceQuantity(id, amount, callback) {
