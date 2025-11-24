@@ -83,3 +83,27 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2025-10-19 17:33:08
+
+-- Additional tables for orders and order items
+DROP TABLE IF EXISTS `orders`;
+CREATE TABLE `orders` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `address` varchar(500) NOT NULL,
+  `status` varchar(50) NOT NULL DEFAULT 'pending',
+  `total` double(10,2) NOT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+DROP TABLE IF EXISTS `order_items`;
+CREATE TABLE `order_items` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `order_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `quantity` int NOT NULL,
+  `price` double(10,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

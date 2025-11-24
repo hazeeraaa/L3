@@ -1,4 +1,5 @@
 const Product = require('../models/Student');
+const Order = require('../models/Order');
 
 /**
  * ProductController for SupermarketAppMVC
@@ -157,21 +158,47 @@ const ProductController = {
 		res.render('cart', { cart, user });
 	},
 
-	// Checkout: reduce quantity in DB, clear cart on success
+	// Show checkout form to collect delivery address
+	showCheckoutForm(req, res) {
+		const cart = req.session.cart || [];
+		const user = req.session && req.session.user ? req.session.user : null;
+		if (cart.length === 0) {
+			if (req.flash) req.flash('error', 'Cart is empty');
+			return res.redirect('/cart');
+		}
+		res.render('checkout', { cart, user });
+	},
+
+	// Checkout: create order with address, reduce stock, clear cart
 	checkout(req, res) {
 		const cart = req.session.cart || [];
 		if (cart.length === 0) {
 			if (req.flash) req.flash('error', 'Cart is empty');
 			return res.redirect('/cart');
 		}
+		const address = req.body.address || '';
+		const userId = req.session.user ? req.session.user.id : null;
+		const total = cart.reduce((s, it) => s + it.price * it.quantity, 0);
 
-		// Process each item sequentially to ensure stock availability
+		// First, attempt to reduce stock for each item sequentially
 		const processNext = (index) => {
 			if (index >= cart.length) {
-				// all processed
-				req.session.cart = [];
-				if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
-				return res.redirect('/inventory');
+				// All stock reduced, create order
+				Order.createOrder(userId, address, cart, total, function(err, info) {
+					if (err) {
+							// Log detailed error and show message to user for debugging
+							console.error('Order creation failed:', err);
+							const msg = 'Failed to create order. ' + (err && err.message ? err.message : 'Please contact support.');
+							if (req.flash) req.flash('error', msg);
+							// render cart so user can try again (do not lose context)
+							return res.redirect('/cart');
+					}
+					// success: clear cart
+					req.session.cart = [];
+					if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
+					return res.redirect('/inventory');
+				});
+				return;
 			}
 			const item = cart[index];
 			Product.reduceQuantity(item.id, item.quantity, function (err, info) {
@@ -180,12 +207,51 @@ const ProductController = {
 					if (req.flash) req.flash('error', `Insufficient stock for ${item.productName}`);
 					return res.redirect('/cart');
 				}
-				// continue to next
 				processNext(index + 1);
 			});
 		};
-
 		processNext(0);
+	},
+
+	// Admin: list all orders and show delivery status
+	adminOrders(req, res) {
+		Order.getAllOrders(function(err, orders) {
+			if (err) {
+				console.error('Failed to fetch orders (getAllOrders):', err);
+				// fall through and render page with empty orders rather than redirecting
+				orders = [];
+			}
+			res.render('adminOrders', { orders, user: req.session.user });
+		});
+	},
+
+	// Admin: update order delivery status
+	updateOrderStatus(req, res) {
+		const orderId = req.params.id;
+		const status = req.body.status || 'pending';
+		Order.updateStatus(orderId, status, function(err, info) {
+			if (err) {
+				console.error('Failed to update order status:', err);
+				if (req.flash) req.flash('error', 'Failed to update status');
+				return res.redirect('/admin/orders');
+			}
+			if (req.flash) req.flash('success', 'Order status updated');
+			res.redirect('/admin/orders');
+		});
+	},
+
+	// Admin: delete an order (and its items)
+	deleteOrder(req, res) {
+		const orderId = req.params.id;
+		Order.deleteOrder(orderId, function(err, info) {
+			if (err) {
+				console.error('Failed to delete order:', err);
+				if (req.flash) req.flash('error', 'Failed to delete order');
+				return res.redirect('/admin/orders');
+			}
+			if (req.flash) req.flash('success', 'Order deleted');
+			res.redirect('/admin/orders');
+		});
 	},
 
 	// Delete a product by ID

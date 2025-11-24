@@ -87,7 +87,22 @@ app.post('/add-to-cart/:id', requireLogin, (req, res) => ProductController.addTo
 app.get('/cart', requireLogin, (req, res) => ProductController.showCart(req, res));
 app.post('/cart/update/:id', requireLogin, (req, res) => ProductController.updateCartItem(req, res));
 app.post('/cart/remove/:id', requireLogin, (req, res) => ProductController.removeFromCart(req, res));
+// Checkout: render address form (GET) and process payment (POST)
+app.get('/checkout', requireLogin, (req, res) => ProductController.showCheckoutForm(req, res));
 app.post('/checkout', requireLogin, (req, res) => ProductController.checkout(req, res));
+
+// Admin routes - require admin role
+function requireAdmin(req, res, next) {
+    if (!req.session || !req.session.user || req.session.user.role !== 'admin') {
+        if (req.flash) req.flash('error', 'Admin access required');
+        return res.redirect('/login');
+    }
+    next();
+}
+
+app.get('/admin/orders', requireAdmin, (req, res) => ProductController.adminOrders(req, res));
+app.post('/admin/orders/:id/status', requireAdmin, (req, res) => ProductController.updateOrderStatus(req, res));
+app.post('/admin/orders/:id/delete', requireAdmin, (req, res) => ProductController.deleteOrder(req, res));
 
 // Render update product form
 app.get('/updateProduct/:id', (req, res) => ProductController.editForm(req, res));
