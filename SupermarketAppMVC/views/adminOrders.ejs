@@ -141,9 +141,40 @@
             <p><strong>Address:</strong> <%= order.address %></p>
 
             <p>
+              <strong>Delivery Type:</strong>
+              <span><%= order.delivery_type ? order.delivery_type : 'doorstep' %></span>
+            </p>
+
+            <p>
+              <strong>Delivery Fee:</strong>
+              <span>$<%= order.delivery_fee ? Number(order.delivery_fee).toFixed(2) : '0.00' %></span>
+            </p>
+
+            <p>
+              <strong>Payment Method:</strong>
+              <span><%= order.payment_method ? order.payment_method : 'N/A' %></span>
+            </p>
+
+            <p>
               <strong>Status:</strong>
               <span class="badge bg-info text-dark"><%= order.status %></span>
             </p>
+
+            <% if (order.delivery_type === 'doorstep') { %>
+              <p><strong>Delivery Status:</strong> <%= order.status %></p>
+            <% } else { %>
+              <p>
+                <strong>Pickup Collected:</strong>
+                <span><%= order.pickup_collected ? 'Yes' : 'No' %></span>
+              </p>
+              <% if (!order.pickup_collected) { %>
+                <form action="/admin/orders/<%= order.id %>/pickup" method="POST" class="d-inline">
+                  <button class="btn btn-sm btn-success" type="submit">Mark Collected</button>
+                </form>
+              <% } %>
+            <% } %>
+
+            <p><strong>Order Total:</strong> $<%= order.total ? Number(order.total).toFixed(2) : '0.00' %></p>
 
             <h6>Items</h6>
             <ul>

@@ -177,14 +177,18 @@ const ProductController = {
 			return res.redirect('/cart');
 		}
 		const address = req.body.address || '';
+		const deliveryOption = req.body.deliveryOption || 'doorstep';
+		const deliveryFee = parseFloat(req.body.deliveryFee || 0) || 0;
+		const paymentMethod = req.body.paymentMethod || null;
 		const userId = req.session.user ? req.session.user.id : null;
 		const total = cart.reduce((s, it) => s + it.price * it.quantity, 0);
+		const finalTotal = total + (isNaN(deliveryFee) ? 0 : deliveryFee);
 
 		// First, attempt to reduce stock for each item sequentially
 		const processNext = (index) => {
 			if (index >= cart.length) {
 				// All stock reduced, create order
-				Order.createOrder(userId, address, cart, total, function(err, info) {
+					Order.createOrder(userId, address, cart, finalTotal, deliveryOption, deliveryFee, paymentMethod, function(err, info) {
 					if (err) {
 							// Log detailed error and show message to user for debugging
 							console.error('Order creation failed:', err);
@@ -250,6 +254,20 @@ const ProductController = {
 				return res.redirect('/admin/orders');
 			}
 			if (req.flash) req.flash('success', 'Order deleted');
+			res.redirect('/admin/orders');
+		});
+	},
+
+	// Admin: mark pickup collected for self-pickup orders
+	markPickupCollected(req, res) {
+		const orderId = req.params.id;
+		Order.updatePickupCollected(orderId, 1, function(err, info) {
+			if (err) {
+				console.error('Failed to mark pickup collected:', err);
+				if (req.flash) req.flash('error', 'Failed to update pickup status');
+				return res.redirect('/admin/orders');
+			}
+			if (req.flash) req.flash('success', 'Pickup marked as collected');
 			res.redirect('/admin/orders');
 		});
 	},

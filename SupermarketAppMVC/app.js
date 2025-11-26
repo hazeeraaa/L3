@@ -103,6 +103,8 @@ function requireAdmin(req, res, next) {
 app.get('/admin/orders', requireAdmin, (req, res) => ProductController.adminOrders(req, res));
 app.post('/admin/orders/:id/status', requireAdmin, (req, res) => ProductController.updateOrderStatus(req, res));
 app.post('/admin/orders/:id/delete', requireAdmin, (req, res) => ProductController.deleteOrder(req, res));
+// Mark pickup as collected (admin)
+app.post('/admin/orders/:id/pickup', requireAdmin, (req, res) => ProductController.markPickupCollected ? ProductController.markPickupCollected(req, res) : res.redirect('/admin/orders'));
 
 // Render update product form
 app.get('/updateProduct/:id', (req, res) => ProductController.editForm(req, res));

@@ -92,6 +92,10 @@ CREATE TABLE `orders` (
   `address` varchar(500) NOT NULL,
   `status` varchar(50) NOT NULL DEFAULT 'pending',
   `total` double(10,2) NOT NULL,
+  `delivery_type` varchar(50) NOT NULL DEFAULT 'doorstep',
+  `delivery_fee` double(10,2) NOT NULL DEFAULT 0.00,
+  `payment_method` varchar(100) DEFAULT NULL,
+  `pickup_collected` tinyint(1) NOT NULL DEFAULT 0,
   `created_at` datetime NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

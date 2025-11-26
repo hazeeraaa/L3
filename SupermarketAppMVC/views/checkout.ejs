@@ -116,18 +116,33 @@
     <% } %>
 
     <div class="card p-4 mt-3">
-      <h4 class="mb-3">Delivery Address</h4>
 
       <form action="/checkout" method="POST">
 
-        <!-- ADDRESS -->
+        <!-- DELIVERY OPTIONS -->
+        <h5 class="mt-3">Delivery Options</h5>
         <div class="mb-3">
-          <label for="address" class="form-label">Address</label>
-          <textarea name="address"
-                    id="address"
-                    class="form-control"
-                    rows="3"
-                    required><%= user && user.address ? user.address : '' %></textarea>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="deliveryOption" id="doorstep" value="doorstep" checked>
+            <label class="form-check-label" for="doorstep">Doorstep delivery (additional $5.00)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="deliveryOption" id="selfpickup" value="self-pickup">
+            <label class="form-check-label" for="selfpickup">Self-pickup (Free)</label>
+          </div>
+        </div>
+
+        <!-- ADDRESS SECTION - shown only for doorstep delivery; appears under delivery options -->
+        <div id="address-section">
+          <h4 class="mb-3">Delivery Address</h4>
+          <div class="mb-3" id="address-group">
+            <label for="address" class="form-label">Address</label>
+            <textarea name="address"
+                      id="address"
+                      class="form-control"
+                      rows="3"
+                      required><%= user && user.address ? user.address : '' %></textarea>
+          </div>
         </div>
 
         <!-- ORDER SUMMARY -->
@@ -146,17 +161,94 @@
             </li>
             <% total += item.quantity * item.price; %>
           <% }) %>
+
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>Delivery Fee</div>
+            <span id="delivery-fee-display">$0.00</span>
+          </li>
+
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div><strong>Final Total</strong></div>
+            <strong id="final-total-display">$<%= total.toFixed(2) %></strong>
+          </li>
         </ul>
 
-        <h5 class="text-end">Total: $<%= total.toFixed(2) %></h5>
+        <!-- PAYMENT METHOD -->
+        <h5 class="mt-3">Payment Method</h5>
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="paymentMethod" id="applepay" value="Apple Pay" checked>
+            <label class="form-check-label" for="applepay">Apple Pay</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="paymentMethod" id="paynow" value="PayNow">
+            <label class="form-check-label" for="paynow">PayNow</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="paymentMethod" id="card" value="Debit/Credit Card">
+            <label class="form-check-label" for="card">Debit / Credit Card</label>
+          </div>
+          <small class="form-text text-muted">No payment details required now — user will complete payment via chosen method.</small>
+        </div>
+
+        <!-- Hidden inputs to submit computed values -->
+        <input type="hidden" name="deliveryType" id="deliveryTypeInput" value="doorstep">
+        <input type="hidden" name="deliveryFee" id="deliveryFeeInput" value="5.00">
+        <input type="hidden" name="finalTotal" id="finalTotalInput" value="<%= total.toFixed(2) %>">
 
         <!-- BUTTONS -->
         <div class="mt-3 text-end">
           <a href="/cart" class="btn btn-secondary me-2">Back to Cart</a>
-          <button type="submit" class="btn btn-primary">Pay</button>
+          <button type="submit" class="btn btn-primary">Place Order</button>
         </div>
 
       </form>
+
+      <script>
+        (function(){
+          // subtotal from server
+          var subtotal = parseFloat('<%= total.toFixed(2) %>');
+          var deliveryFee = 5.00;
+
+          var doorstepRadio = document.getElementById('doorstep');
+          var selfpickupRadio = document.getElementById('selfpickup');
+          var deliveryFeeDisplay = document.getElementById('delivery-fee-display');
+          var finalTotalDisplay = document.getElementById('final-total-display');
+          var deliveryTypeInput = document.getElementById('deliveryTypeInput');
+          var deliveryFeeInput = document.getElementById('deliveryFeeInput');
+          var finalTotalInput = document.getElementById('finalTotalInput');
+          var addressSection = document.getElementById('address-section');
+          var addressTextarea = document.getElementById('address');
+
+          function updateTotals(){
+            var fee = doorstepRadio.checked ? deliveryFee : 0.00;
+            var finalTotal = subtotal + fee;
+            deliveryFeeDisplay.textContent = '$' + fee.toFixed(2);
+            finalTotalDisplay.textContent = '$' + finalTotal.toFixed(2);
+            deliveryTypeInput.value = doorstepRadio.checked ? 'doorstep' : 'self-pickup';
+            deliveryFeeInput.value = fee.toFixed(2);
+            finalTotalInput.value = finalTotal.toFixed(2);
+            // Show/hide address section and toggle required attribute
+            if (doorstepRadio.checked) {
+              if (addressSection) addressSection.style.display = 'block';
+              if (addressTextarea) addressTextarea.required = true;
+            } else {
+              if (addressSection) addressSection.style.display = 'none';
+              if (addressTextarea) {
+                addressTextarea.required = false;
+                // optional: clear address when hidden
+                // addressTextarea.value = '';
+              }
+            }
+          }
+
+          doorstepRadio.addEventListener('change', updateTotals);
+          selfpickupRadio.addEventListener('change', updateTotals);
+
+          // initialize on load
+          updateTotals();
+        })();
+      </script>
     </div>
 
   </div>

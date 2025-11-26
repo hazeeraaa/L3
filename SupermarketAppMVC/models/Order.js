@@ -7,12 +7,13 @@ const db = require('../db');
  */
 
 const Order = {
-    createOrder(userId, address, items, total, callback) {
+    createOrder(userId, address, items, total, deliveryType, deliveryFee, paymentMethod, callback) {
         // Use the shared connection for a transaction
         db.beginTransaction(function(err) {
             if (err) return callback(err);
-            const insertOrder = 'INSERT INTO orders (user_id, address, status, total, created_at) VALUES (?, ?, ?, ?, NOW())';
-            db.query(insertOrder, [userId, address, 'pending', total], function(err, result) {
+            const insertOrder = 'INSERT INTO orders (user_id, address, status, total, delivery_type, delivery_fee, payment_method, pickup_collected, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())';
+            // pickup_collected defaults to 0 on create
+            db.query(insertOrder, [userId, address, 'pending', total, deliveryType || 'doorstep', deliveryFee || 0.00, paymentMethod || null, 0], function(err, result) {
                 if (err) return db.rollback(function(){ callback(err); });
                 const orderId = result.insertId;
                 // Insert items one-by-one to avoid driver-specific bulk-insert issues
@@ -42,7 +43,7 @@ const Order = {
     // List all orders with items
     getAllOrders(callback) {
         // Join users to include the customer's email for admin views
-        const sql = `SELECT o.id as orderId, o.user_id, u.email as user_email, o.address, o.status, o.total, o.created_at,
+        const sql = `SELECT o.id as orderId, o.user_id, u.email as user_email, o.address, o.status, o.total, o.delivery_type, o.delivery_fee, o.payment_method, o.pickup_collected, o.created_at,
             oi.id as itemId, oi.product_id, oi.product_name, oi.quantity, oi.price
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
@@ -57,7 +58,7 @@ const Order = {
             // group by order
             const orders = {};
             results.forEach(row => {
-                if (!orders[row.orderId]) orders[row.orderId] = { id: row.orderId, user_id: row.user_id, user_email: row.user_email, address: row.address, status: row.status, total: row.total, created_at: row.created_at, items: [] };
+                if (!orders[row.orderId]) orders[row.orderId] = { id: row.orderId, user_id: row.user_id, user_email: row.user_email, address: row.address, status: row.status, total: row.total, delivery_type: row.delivery_type, delivery_fee: row.delivery_fee, payment_method: row.payment_method, pickup_collected: row.pickup_collected, created_at: row.created_at, items: [] };
                 if (row.itemId) orders[row.orderId].items.push({ id: row.itemId, product_id: row.product_id, product_name: row.product_name, quantity: row.quantity, price: row.price });
             });
             callback(null, Object.values(orders));
@@ -68,6 +69,14 @@ const Order = {
     updateStatus(orderId, status, callback) {
         const sql = 'UPDATE orders SET status = ? WHERE id = ?';
         db.query(sql, [status, orderId], function(err, result) {
+            if (err) return callback(err);
+            callback(null, { affectedRows: result.affectedRows });
+        });
+    }
+
+    ,updatePickupCollected(orderId, collected, callback) {
+        const sql = 'UPDATE orders SET pickup_collected = ? WHERE id = ?';
+        db.query(sql, [collected ? 1 : 0, orderId], function(err, result) {
             if (err) return callback(err);
             callback(null, { affectedRows: result.affectedRows });
         });
