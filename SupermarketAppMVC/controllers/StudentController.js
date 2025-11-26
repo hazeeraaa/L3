@@ -1,5 +1,6 @@
 const Product = require('../models/Student');
 const Order = require('../models/Order');
+const PDFDocument = require('pdfkit');
 
 /**
  * ProductController for SupermarketAppMVC
@@ -10,15 +11,20 @@ const Order = require('../models/Order');
 const ProductController = {
 	// List all products and render the inventory view
 	list(req, res) {
-		Product.getAllProducts(function (err, products) {
+		const q = req.query.q || '';
+		const cb = function (err, products) {
 			if (err) {
 				console.error('Error fetching products:', err);
 				return res.status(500).send('Error retrieving products');
 			}
-			// render with session user (res.locals.user also available in views)
 			const user = req.session && req.session.user ? req.session.user : null;
 			res.render('inventory', { products, user });
-		});
+		};
+		if (q && q.trim() !== '') {
+			Product.searchProducts(q, cb);
+		} else {
+			Product.getAllProducts(cb);
+		}
 	},
 
 	// Get a product by ID and render the product view
@@ -151,6 +157,13 @@ const ProductController = {
 		res.redirect('/cart');
 	},
 
+	// Clear the entire cart
+	clearCart(req, res) {
+		req.session.cart = [];
+		if (req.flash) req.flash('success', 'Cart cleared');
+		res.redirect('/cart');
+	},
+
 	// Show cart contents
 	showCart(req, res) {
 		const cart = req.session.cart || [];
@@ -167,6 +180,103 @@ const ProductController = {
 			return res.redirect('/cart');
 		}
 		res.render('checkout', { cart, user });
+	},
+
+	// Show purchase history for logged-in user
+	userOrders(req, res) {
+		const userId = req.session.user ? req.session.user.id : null;
+		if (!userId) {
+			if (req.flash) req.flash('error', 'Please login to view orders');
+			return res.redirect('/login');
+		}
+		Order.getOrdersByUser(userId, function(err, orders) {
+			if (err) {
+				console.error('Failed to fetch user orders:', err);
+				orders = [];
+			}
+			res.render('orders', { orders, user: req.session.user });
+		});
+	},
+
+	// View invoice for an order
+	viewInvoice(req, res) {
+		const orderId = req.params.orderId || req.params.id;
+		Order.getOrderById(orderId, function(err, order) {
+			if (err) {
+				console.error('Failed to fetch order for invoice:', err);
+				if (req.flash) req.flash('error', 'Unable to load invoice');
+				return res.redirect('/inventory');
+			}
+			if (!order) {
+				if (req.flash) req.flash('error', 'Order not found');
+				return res.redirect('/inventory');
+			}
+			// Only allow owner or admin
+			const user = req.session.user || null;
+			if (!user || (user.role !== 'admin' && user.id != order.user_id)) {
+				if (req.flash) req.flash('error', 'Access denied');
+				return res.redirect('/inventory');
+			}
+			res.render('invoice', { order, user });
+		});
+	},
+
+	// Generate PDF for invoice and send as download
+	generateInvoicePdf(req, res) {
+		const orderId = req.params.orderId || req.params.id;
+		Order.getOrderById(orderId, function(err, order) {
+			if (err) {
+				console.error('Failed to fetch order for PDF:', err);
+				if (req.flash) req.flash('error', 'Unable to generate invoice PDF');
+				return res.redirect('/inventory');
+			}
+			if (!order) {
+				if (req.flash) req.flash('error', 'Order not found');
+				return res.redirect('/inventory');
+			}
+			// Only allow owner or admin
+			const user = req.session.user || null;
+			if (!user || (user.role !== 'admin' && user.id != order.user_id)) {
+				if (req.flash) req.flash('error', 'Access denied');
+				return res.redirect('/inventory');
+			}
+
+			// Create PDF
+			const doc = new PDFDocument({ size: 'A4', margin: 50 });
+			res.setHeader('Content-Type', 'application/pdf');
+			res.setHeader('Content-Disposition', `attachment; filename=invoice-${order.id}.pdf`);
+			doc.pipe(res);
+
+			// Header
+			doc.fontSize(20).text('Supermarket App', { align: 'left' });
+			doc.moveDown(0.5);
+			doc.fontSize(14).text(`Invoice - Order #${order.id}`);
+			doc.moveDown(0.5);
+			doc.fontSize(10).text(`Customer: ${order.user_email || ''}`);
+			doc.text(`Address: ${order.address || ''}`);
+			doc.text(`Placed on: ${order.created_at}`);
+			doc.text(`Status: ${order.status}`);
+			doc.moveDown(0.5);
+
+			// Table header
+			doc.fontSize(12).text('Items:', { underline: true });
+			doc.moveDown(0.2);
+			let subtotal = 0;
+			order.items.forEach(it => {
+				const lineTotal = Number(it.price) * Number(it.quantity);
+				subtotal += lineTotal;
+				doc.fontSize(10).text(`${it.product_name || it.productName || ''} — ${it.quantity} x $${Number(it.price).toFixed(2)} = $${lineTotal.toFixed(2)}`);
+			});
+			doc.moveDown(0.5);
+			doc.fontSize(12).text(`Subtotal: $${subtotal.toFixed(2)}`, { align: 'right' });
+			doc.fontSize(12).text(`Delivery Fee: $${Number(order.delivery_fee || 0).toFixed(2)}`, { align: 'right' });
+			doc.fontSize(14).text(`Total: $${Number(order.total).toFixed(2)}`, { align: 'right' });
+
+			doc.moveDown(1);
+			doc.fontSize(9).text('Thank you for shopping with Supermarket App.', { align: 'center' });
+
+			doc.end();
+		});
 	},
 
 	// Checkout: create order with address, reduce stock, clear cart
@@ -197,10 +307,10 @@ const ProductController = {
 							// render cart so user can try again (do not lose context)
 							return res.redirect('/cart');
 					}
-					// success: clear cart
-					req.session.cart = [];
-					if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
-					return res.redirect('/inventory');
+						// success: clear cart and redirect to invoice page
+						req.session.cart = [];
+						if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
+						return res.redirect(`/invoice/${info.orderId}`);
 				});
 				return;
 			}

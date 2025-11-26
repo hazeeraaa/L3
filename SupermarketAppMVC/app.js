@@ -87,9 +87,15 @@ app.post('/add-to-cart/:id', requireLogin, (req, res) => ProductController.addTo
 app.get('/cart', requireLogin, (req, res) => ProductController.showCart(req, res));
 app.post('/cart/update/:id', requireLogin, (req, res) => ProductController.updateCartItem(req, res));
 app.post('/cart/remove/:id', requireLogin, (req, res) => ProductController.removeFromCart(req, res));
+app.post('/cart/clear', requireLogin, (req, res) => ProductController.clearCart(req, res));
 // Checkout: render address form (GET) and process payment (POST)
 app.get('/checkout', requireLogin, (req, res) => ProductController.showCheckoutForm(req, res));
 app.post('/checkout', requireLogin, (req, res) => ProductController.checkout(req, res));
+
+// User orders / invoices
+app.get('/orders', requireLogin, (req, res) => ProductController.userOrders(req, res));
+app.get('/invoice/:orderId', requireLogin, (req, res) => ProductController.viewInvoice(req, res));
+app.get('/invoice/:orderId/pdf', requireLogin, (req, res) => ProductController.generateInvoicePdf(req, res));
 
 // Admin routes - require admin role
 function requireAdmin(req, res, next) {
@@ -103,8 +109,7 @@ function requireAdmin(req, res, next) {
 app.get('/admin/orders', requireAdmin, (req, res) => ProductController.adminOrders(req, res));
 app.post('/admin/orders/:id/status', requireAdmin, (req, res) => ProductController.updateOrderStatus(req, res));
 app.post('/admin/orders/:id/delete', requireAdmin, (req, res) => ProductController.deleteOrder(req, res));
-// Mark pickup as collected (admin)
-app.post('/admin/orders/:id/pickup', requireAdmin, (req, res) => ProductController.markPickupCollected ? ProductController.markPickupCollected(req, res) : res.redirect('/admin/orders'));
+app.post('/admin/orders/:id/pickup', requireAdmin, (req, res) => ProductController.markPickupCollected(req, res));
 
 // Render update product form
 app.get('/updateProduct/:id', (req, res) => ProductController.editForm(req, res));

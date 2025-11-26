@@ -168,6 +168,9 @@
 
       <div class="mt-4 text-end">
         <a href="/inventory" class="btn btn-secondary">Back to Products</a>
+        <form action="/cart/clear" method="POST" style="display:inline-block; margin-left:10px;">
+          <button class="btn btn-danger" type="submit">Clear Cart</button>
+        </form>
         <a href="/checkout" class="btn btn-success" style="margin-left:10px;">Checkout</a>
       </div>
     <% } %>

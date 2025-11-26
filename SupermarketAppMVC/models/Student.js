@@ -14,6 +14,15 @@ const Product = {
 		});
 	},
 
+	// Search products by name (case-insensitive substring match)
+	searchProducts(query, callback) {
+		const sql = 'SELECT id, productName, quantity, price, image FROM products WHERE productName LIKE ?';
+		const param = `%${query || ''}%`;
+		db.query(sql, [param], function (err, results) {
+			callback(err, results);
+		});
+	},
+
 	// Get a single product by ID
 	getProductById(id, callback) {
 		const sql = 'SELECT id, productName, quantity, price, image FROM products WHERE id = ? LIMIT 1';

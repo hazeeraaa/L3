@@ -113,6 +113,9 @@
             <li class="nav-item">
               <a class="nav-link" href="/cart">View Cart</a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/orders">My Orders</a>
+            </li>
           <% } %>
           <% if (user) { %>
             <li class="nav-item">
@@ -156,6 +159,15 @@
 
     <h2 class="page-title">Available Products</h2>
 
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <form class="d-flex" method="GET" action="/inventory">
+          <input id="searchInput" name="q" class="form-control me-2" type="search" placeholder="Search products..." aria-label="Search">
+          <button class="btn btn-outline-success" type="submit">Search</button>
+        </form>
+      </div>
+    </div>
+
     <div class="row">
       <% for(let i=0; i < products.length; i++) { %>
         <div class="col-md-4">
@@ -177,6 +189,21 @@
         </div>
       <% } %>
     </div>
+  <script>
+    // client-side filtering (enhances UX). Filters visible product cards by name
+    (function(){
+      const input = document.getElementById('searchInput');
+      if (!input) return;
+      input.addEventListener('input', function() {
+        const q = this.value.trim().toLowerCase();
+        const cards = document.querySelectorAll('.product-card');
+        cards.forEach(c => {
+          const name = (c.querySelector('h5') && c.querySelector('h5').innerText) || '';
+          c.parentElement.style.display = name.toLowerCase().includes(q) ? '' : 'none';
+        });
+      });
+    })();
+  </script>
   </div>
 </body>
 </html>

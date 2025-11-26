@@ -65,6 +65,45 @@ const Order = {
         });
     },
 
+    // Get orders for a specific user with items
+    getOrdersByUser(userId, callback) {
+        const sql = `SELECT o.id as orderId, o.user_id, u.email as user_email, o.address, o.status, o.total, o.delivery_type, o.delivery_fee, o.payment_method, o.pickup_collected, o.created_at,
+            oi.id as itemId, oi.product_id, oi.product_name, oi.quantity, oi.price
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            WHERE o.user_id = ?
+            ORDER BY o.created_at DESC`;
+        db.query(sql, [userId], function(err, results) {
+            if (err) return callback(err);
+            const orders = {};
+            results.forEach(row => {
+                if (!orders[row.orderId]) orders[row.orderId] = { id: row.orderId, user_id: row.user_id, user_email: row.user_email, address: row.address, status: row.status, total: row.total, delivery_type: row.delivery_type, delivery_fee: row.delivery_fee, payment_method: row.payment_method, pickup_collected: row.pickup_collected, created_at: row.created_at, items: [] };
+                if (row.itemId) orders[row.orderId].items.push({ id: row.itemId, product_id: row.product_id, product_name: row.product_name, quantity: row.quantity, price: row.price });
+            });
+            callback(null, Object.values(orders));
+        });
+    },
+
+    // Get a single order (with items) by order id
+    getOrderById(orderId, callback) {
+        const sql = `SELECT o.id as orderId, o.user_id, u.email as user_email, o.address, o.status, o.total, o.delivery_type, o.delivery_fee, o.payment_method, o.pickup_collected, o.created_at,
+            oi.id as itemId, oi.product_id, oi.product_name, oi.quantity, oi.price
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            WHERE o.id = ?`;
+        db.query(sql, [orderId], function(err, results) {
+            if (err) return callback(err);
+            if (!results || results.length === 0) return callback(null, null);
+            const order = { id: results[0].orderId, user_id: results[0].user_id, user_email: results[0].user_email, address: results[0].address, status: results[0].status, total: results[0].total, delivery_type: results[0].delivery_type, delivery_fee: results[0].delivery_fee, payment_method: results[0].payment_method, pickup_collected: results[0].pickup_collected, created_at: results[0].created_at, items: [] };
+            results.forEach(row => {
+                if (row.itemId) order.items.push({ id: row.itemId, product_id: row.product_id, product_name: row.product_name, quantity: row.quantity, price: row.price });
+            });
+            callback(null, order);
+        });
+    },
+
     // Update delivery status for an order
     updateStatus(orderId, status, callback) {
         const sql = 'UPDATE orders SET status = ? WHERE id = ?';
