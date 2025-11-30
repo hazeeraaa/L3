@@ -2,9 +2,13 @@ const express = require('express');
 const multer = require('multer');
 const session = require('express-session');
 const flash = require('connect-flash');
+// load environment variables from .env if present
+require('dotenv').config();
+const bcrypt = require('bcryptjs');
 const app = express();
-const ProductController = require('./controllers/StudentController');
+const ProductController = require('./controllers/ProductController');
 const AuthController = require('./controllers/AuthController');
+const User = require('./models/User');
 
 // Set up multer for file uploads
 const storage = multer.diskStorage({
@@ -18,7 +22,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// NOTE: database access is handled by the MVC model (`models/Student.js`).
+// NOTE: database access is handled by the MVC model (`models/Product.js`).
 // Removed direct database connection code from this file.
 
 // Set up view engine
@@ -119,6 +123,39 @@ app.post('/updateProduct/:id', upload.single('image'), (req, res) => ProductCont
 
 // Delete product
 app.get('/deleteProduct/:id', (req, res) => ProductController.delete(req, res));
+
+// Ensure there's at least one admin user on startup (use env vars to configure)
+(async function ensureAdmin() {
+    try {
+        const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
+        const adminPassword = process.env.ADMIN_PASSWORD || 'change_me_now';
+
+        User.getUserByEmail(adminEmail, async function (err, existing) {
+            if (err) {
+                return console.error('Error checking admin existence:', err);
+            }
+            if (!existing) {
+                const hashed = await bcrypt.hash(adminPassword, 10);
+                const admin = {
+                    username: 'admin',
+                    email: adminEmail,
+                    password: hashed,
+                    address: '',
+                    contact: '',
+                    role: 'admin'
+                };
+                User.createUser(admin, function (err2, info) {
+                    if (err2) console.error('Failed to create admin user:', err2);
+                    else console.log('Default admin created with email:', adminEmail);
+                });
+            } else {
+                console.log('Admin user already exists:', adminEmail);
+            }
+        });
+    } catch (e) {
+        console.error('ensureAdmin error:', e);
+    }
+})();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

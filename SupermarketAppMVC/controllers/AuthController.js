@@ -13,7 +13,7 @@ const AuthController = {
 
     async register(req, res) {
         try {
-            const { username, email, password, address, contact, role } = req.body;
+            const { username, email, password, address, contact } = req.body;
 
             // basic validation
             const errors = [];
@@ -37,9 +37,9 @@ const AuthController = {
                     return res.render('register', { messages: msg, formData: req.body });
                 }
 
-                // hash password and create
+                // hash password and create (force role = 'user' for public registration)
                 const hashed = await bcrypt.hash(password, 10);
-                const user = { username, email, password: hashed, address, contact, role };
+                const user = { username, email, password: hashed, address, contact, role: 'user' };
                 User.createUser(user, function (err, info) {
                     if (err) {
                         console.error('Error creating user:', err);

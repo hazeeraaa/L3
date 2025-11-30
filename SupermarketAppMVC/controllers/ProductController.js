@@ -300,18 +300,18 @@ const ProductController = {
 				// All stock reduced, create order
 					Order.createOrder(userId, address, cart, finalTotal, deliveryOption, deliveryFee, paymentMethod, function(err, info) {
 					if (err) {
-							// Log detailed error and show message to user for debugging
-							console.error('Order creation failed:', err);
-							const msg = 'Failed to create order. ' + (err && err.message ? err.message : 'Please contact support.');
-							if (req.flash) req.flash('error', msg);
-							// render cart so user can try again (do not lose context)
-							return res.redirect('/cart');
+						// Log detailed error and show message to user for debugging
+						console.error('Order creation failed:', err);
+						const msg = 'Failed to create order. ' + (err && err.message ? err.message : 'Please contact support.');
+						if (req.flash) req.flash('error', msg);
+						// render cart so user can try again (do not lose context)
+						return res.redirect('/cart');
 					}
 						// success: clear cart and redirect to invoice page
 						req.session.cart = [];
 						if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
 						return res.redirect(`/invoice/${info.orderId}`);
-				});
+					});
 				return;
 			}
 			const item = cart[index];
@@ -396,4 +396,3 @@ const ProductController = {
 };
 
 module.exports = ProductController;
-

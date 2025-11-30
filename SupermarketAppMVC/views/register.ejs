@@ -139,13 +139,7 @@
           <% if (formData && formData.contact) { %> value="<%= formData.contact %>" <% } %>>
       </div>
 
-      <div class="form-group mb-4">
-        <label for="role">Role:</label>
-        <select id="role" name="role" class="form-control" required>
-          <option value="user" <% if (formData && formData.role === 'user') { %> selected <% } %>>User</option>
-          <option value="admin" <% if (formData && formData.role === 'admin') { %> selected <% } %>>Admin</option>
-        </select>
-      </div>
+      <!-- role selection removed; server assigns 'user' by default -->
 
       <button type="submit" class="btn btn-primary">Register</button>
       <a href="/login" class="btn btn-secondary">Go to Login</a>
