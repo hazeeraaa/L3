@@ -34,6 +34,8 @@ app.use(express.static('public'));
 app.use(express.urlencoded({
     extended: false
 }));
+// parse JSON bodies (for PayPal API calls)
+app.use(express.json());
 
 // session + flash middleware
 app.use(session({
@@ -51,6 +53,8 @@ app.use((req, res, next) => {
     res.locals.messages = req.flash ? req.flash('success') : [];
     // allow toggling custom stylesheet (default enabled)
     res.locals.useCustomCss = app.locals.useCustomCss !== undefined ? app.locals.useCustomCss : true;
+    // expose PayPal client id to templates
+    res.locals.PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
     next();
 });
 
@@ -68,6 +72,54 @@ app.get('/toggle-css', (req, res) => {
     res.locals.useCustomCss = app.locals.useCustomCss;
     const referer = req.get('Referer') || '/';
     res.redirect(referer);
+});
+
+// PayPal endpoints used by the client-side PayPal SDK
+// Inline PayPal routes like StudentFinesAppPaypal: create-order and capture-order live in app.js
+app.post('/api/paypal/create-order', async (req, res) => {
+    try {
+        const userId = req.session && req.session.user ? req.session.user.id : null;
+        let cartItems = [];
+        if (userId) {
+            const Cart = require('./models/Cart');
+            cartItems = await new Promise((resolve, reject) => Cart.getItemsByUser(userId, (err, items) => err ? reject(err) : resolve(items)));
+            cartItems = (cartItems || []).map(it => ({ id: it.product_id, productName: it.product_name, quantity: it.quantity, price: it.price }));
+        } else {
+            cartItems = req.session.cart || [];
+        }
+        if (!cartItems || cartItems.length === 0) return res.status(400).json({ error: 'Cart is empty' });
+
+        const deliveryFee = parseFloat(req.body.deliveryFee || 0) || 0;
+        const subtotal = cartItems.reduce((s, it) => s + it.price * it.quantity, 0);
+        const finalTotal = (subtotal + deliveryFee).toFixed(2);
+
+        const paypalSvc = require('./services/paypal');
+        const order = await paypalSvc.createOrder(finalTotal);
+        if (order && order.id) return res.json({ id: order.id });
+        return res.status(500).json({ error: 'Failed to create PayPal order', details: order });
+    } catch (err) {
+        console.error('create-order error:', err);
+        res.status(500).json({ error: 'Failed to create PayPal order', message: err.message });
+    }
+});
+
+app.post('/api/paypal/capture-order', async (req, res) => {
+    try {
+        const { orderID } = req.body;
+        if (!orderID) return res.status(400).json({ error: 'Missing orderID' });
+        const paypalSvc = require('./services/paypal');
+        const capture = await paypalSvc.captureOrder(orderID);
+        console.log('PayPal capture response:', capture);
+        const status = capture && (capture.status || (capture.purchase_units && capture.purchase_units[0] && capture.purchase_units[0].payments && capture.purchase_units[0].payments.captures && capture.purchase_units[0].payments.captures[0] && capture.purchase_units[0].payments.captures[0].status));
+        if (status === 'COMPLETED' || status === 'COMPLETED') {
+            // delegate to ProductController.pay to finalize order locally
+            return require('./controllers/ProductController').pay(req, res, capture);
+        }
+        return res.status(400).json({ error: 'Payment not completed', details: capture });
+    } catch (err) {
+        console.error('capture-order error:', err);
+        res.status(500).json({ error: 'Failed to capture PayPal order', message: err.message });
+    }
 });
 
 // Simple auth guard for routes that require a logged-in user

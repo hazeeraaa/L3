@@ -173,13 +173,30 @@ const ProductController = {
 
 	// Show checkout form to collect delivery address
 	showCheckoutForm(req, res) {
-		const cart = req.session.cart || [];
 		const user = req.session && req.session.user ? req.session.user : null;
-		if (cart.length === 0) {
-			if (req.flash) req.flash('error', 'Cart is empty');
-			return res.redirect('/cart');
+		if (user) {
+			const Cart = require('../models/Cart');
+			Cart.getItemsByUser(user.id, function(err, items) {
+				if (err) {
+					console.error('Failed to load DB cart for checkout form:', err);
+					if (req.flash) req.flash('error', 'Unable to load cart');
+					return res.redirect('/cart');
+				}
+				const cart = (items || []).map(it => ({ id: it.product_id, productName: it.product_name, quantity: it.quantity, price: it.price }));
+				if (cart.length === 0) {
+					if (req.flash) req.flash('error', 'Cart is empty');
+					return res.redirect('/cart');
+				}
+				res.render('checkout', { cart, user });
+			});
+		} else {
+			const cart = req.session.cart || [];
+			if (cart.length === 0) {
+				if (req.flash) req.flash('error', 'Cart is empty');
+				return res.redirect('/cart');
+			}
+			res.render('checkout', { cart, user });
 		}
-		res.render('checkout', { cart, user });
 	},
 
 	// Show purchase history for logged-in user
@@ -347,6 +364,88 @@ const ProductController = {
 		} else {
 			const cart = req.session.cart || [];
 			processCart(cart);
+		}
+	},
+
+	// Process PayPal capture: create local order, reduce stock, clear cart
+	async pay(req, res, capture) {
+		try {
+			// ensure capture object indicates completion
+			const status = capture && (capture.status || (capture.purchase_units && capture.purchase_units[0] && capture.purchase_units[0].payments && capture.purchase_units[0].payments.captures && capture.purchase_units[0].payments.captures[0] && capture.purchase_units[0].payments.captures[0].status));
+			if (status !== 'COMPLETED') return res.status(400).json({ error: 'Payment not completed', details: capture });
+
+			const userId = req.session && req.session.user ? req.session.user.id : null;
+			// load cart
+			let cartItems = [];
+			if (userId) {
+				const Cart = require('../models/Cart');
+				cartItems = await new Promise((resolve, reject) => Cart.getItemsByUser(userId, (err, items) => err ? reject(err) : resolve(items)));
+				cartItems = (cartItems || []).map(it => ({ id: it.product_id, productName: it.product_name, quantity: it.quantity, price: it.price }));
+			} else {
+				cartItems = req.session.cart || [];
+			}
+			if (!cartItems || cartItems.length === 0) return res.status(400).json({ error: 'Cart is empty' });
+
+
+
+			// derive delivery info from request body (sent by client)
+			const address = req.body.address || '';
+			const deliveryType = req.body.deliveryType || 'doorstep';
+			const deliveryFee = parseFloat(req.body.deliveryFee || 0) || 0;
+			const subtotal = cartItems.reduce((s, it) => s + it.price * it.quantity, 0);
+			const finalTotal = subtotal + deliveryFee;
+
+			// persist PayPal capture as a transaction (for audit)
+			try {
+				const isoString = (capture.purchase_units && capture.purchase_units[0] && capture.purchase_units[0].payments && capture.purchase_units[0].payments.captures && capture.purchase_units[0].payments.captures[0] && capture.purchase_units[0].payments.captures[0].create_time) || null;
+				const mysqlDatetime = isoString ? isoString.replace('T', ' ').replace('Z', '') : null;
+				const Transaction = require('../models/Transaction');
+				const trans = {
+					orderId: capture.id,
+					payerId: (capture.payer && capture.payer.payer_id) || null,
+					payerEmail: (capture.payer && capture.payer.email_address) || null,
+					amount: (capture.purchase_units && capture.purchase_units[0] && capture.purchase_units[0].payments && capture.purchase_units[0].payments.captures && capture.purchase_units[0].payments.captures[0] && capture.purchase_units[0].payments.captures[0].amount && capture.purchase_units[0].payments.captures[0].amount.value) || finalTotal || 0,
+					currency: (capture.purchase_units && capture.purchase_units[0] && capture.purchase_units[0].payments && capture.purchase_units[0].payments.captures && capture.purchase_units[0].payments.captures[0] && capture.purchase_units[0].payments.captures[0].amount && capture.purchase_units[0].payments.captures[0].amount.currency_code) || 'SGD',
+					status: capture.status || null,
+					time: mysqlDatetime
+				};
+				Transaction.create(trans, function(err2) {
+					if (err2) console.error('Failed to save transaction:', err2);
+				});
+			} catch (tErr) {
+				console.error('Transaction persistence error:', tErr);
+			}
+
+			// reduce stock sequentially
+			const reduceNext = (idx) => new Promise((resolve, reject) => {
+				if (idx >= cartItems.length) return resolve();
+				const it = cartItems[idx];
+				require('../models/Product').reduceQuantity(it.id, it.quantity, function(err) {
+					if (err) return reject(err);
+					resolve(reduceNext(idx+1));
+				});
+			});
+
+			await reduceNext(0);
+
+			// create order in DB
+			require('../models/Order').createOrder(userId, address, cartItems, finalTotal, deliveryType, deliveryFee, 'PayPal', function(err, info) {
+				if (err) {
+					console.error('Failed to create Order after PayPal capture:', err);
+					return res.status(500).json({ error: 'Failed to create local order' });
+				}
+				// clear cart
+				if (userId) {
+					const Cart = require('../models/Cart');
+					Cart.clearCart(userId, function(){});
+				} else {
+					req.session.cart = [];
+				}
+				return res.json({ success: true, invoiceUrl: `/invoice/${info.orderId}`, capture });
+			});
+		} catch (err) {
+			console.error('ProductController.pay error:', err);
+			return res.status(500).json({ error: 'Failed to complete PayPal payment', message: err.message });
 		}
 	},
 

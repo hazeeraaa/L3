@@ -127,3 +127,18 @@ CREATE TABLE `cart_items` (
   INDEX (`user_id`),
   INDEX (`product_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Table structure for table `transactions` (PayPal captures)
+DROP TABLE IF EXISTS `transactions`;
+CREATE TABLE `transactions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `orderId` varchar(255) NOT NULL,
+  `payerId` varchar(255),
+  `payerEmail` varchar(255),
+  `amount` decimal(10,2) NOT NULL,
+  `currency` varchar(10),
+  `status` varchar(50),
+  `time` datetime,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

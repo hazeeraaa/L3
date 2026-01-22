@@ -54,15 +54,6 @@
 
 <body>
   <%- include('partials/header') %>
-              <a class="nav-link" href="/logout">Logout</a>
-            </li>
-          <% } %>
-
-        </ul>
-      </div>
-    </div>
-  </nav>
-
   <!-- MAIN CONTENT -->
   <div class="container mt-4">
 
@@ -157,8 +148,15 @@
             <input class="form-check-input" type="radio" name="paymentMethod" id="card" value="Debit/Credit Card">
             <label class="form-check-label" for="card">Debit / Credit Card</label>
           </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="paymentMethod" id="paypalRadio" value="PayPal">
+            <label class="form-check-label" for="paypalRadio">PayPal</label>
+          </div>
           <small class="form-text text-muted">No payment details required now — user will complete payment via chosen method.</small>
         </div>
+
+        <!-- PayPal button container (shown when PayPal is selected) -->
+        <div id="paypal-button-container" style="display:none;" class="mb-3"></div>
 
         <!-- Hidden inputs to submit computed values -->
         <input type="hidden" name="deliveryType" id="deliveryTypeInput" value="doorstep">
@@ -168,7 +166,7 @@
         <!-- BUTTONS -->
         <div class="mt-3 text-end">
           <a href="/cart" class="btn btn-secondary me-2">Back to Cart</a>
-          <button type="submit" class="btn btn-primary">Place Order</button>
+          <button type="submit" id="placeOrderBtn" class="btn btn-primary">Place Order</button>
         </div>
 
       </form>
@@ -216,6 +214,66 @@
 
           // initialize on load
           updateTotals();
+        })();
+      </script>
+      <script>
+        (function(){
+          // Toggle PayPal buttons when PayPal payment selected
+          const paypalRadio = document.getElementById('paypalRadio');
+          const placeOrderBtn = document.getElementById('placeOrderBtn');
+          const paypalContainer = document.getElementById('paypal-button-container');
+
+          function showPaypal(show) {
+            if (show) {
+              paypalContainer.style.display = 'block';
+              placeOrderBtn.style.display = 'none';
+            } else {
+              paypalContainer.style.display = 'none';
+              placeOrderBtn.style.display = 'inline-block';
+            }
+          }
+
+          // initialize state
+          showPaypal(false);
+
+          // attach change listeners to payment radios
+          const radios = document.querySelectorAll('input[name="paymentMethod"]');
+          radios.forEach(r => r.addEventListener('change', function(){
+            showPaypal(this.id === 'paypalRadio');
+          }));
+
+          // load PayPal SDK script dynamically using server-side client id
+          const PAYPAL_CLIENT_ID = '<%= PAYPAL_CLIENT_ID %>' || '';
+          if (PAYPAL_CLIENT_ID) {
+            const s = document.createElement('script');
+            s.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=SGD`;
+            s.onload = function() {
+              // render buttons
+              if (window.paypal) {
+                paypal.Buttons({
+                  createOrder: function(data, actions) {
+                    // ask server to create order (server computes total) using API route
+                    const amount = document.getElementById('finalTotalInput').value || '0';
+                    return fetch('/api/paypal/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) }).then(res => res.json()).then(order => order.id);
+                  },
+                  onApprove: function(data, actions) {
+                    // capture on server and then redirect to invoice
+                    const payload = { orderID: data.orderID, address: document.getElementById('address').value || '', deliveryType: document.getElementById('deliveryTypeInput').value || 'doorstep', deliveryFee: document.getElementById('deliveryFeeInput').value || '0' };
+                    return fetch('/api/paypal/capture-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(res => res.json()).then(resp => {
+                      if (resp && resp.success && resp.invoiceUrl) {
+                        window.location = resp.invoiceUrl;
+                      } else {
+                        alert('Payment succeeded but order creation failed.');
+                        console.error('Capture response', resp);
+                      }
+                    });
+                  },
+                  onError: function(err) { console.error('PayPal Buttons error', err); }
+                }).render('#paypal-button-container');
+              }
+            };
+            document.body.appendChild(s);
+          }
         })();
       </script>
     </div>
