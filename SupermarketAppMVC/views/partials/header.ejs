@@ -1,0 +1,38 @@
+<nav class="navbar navbar-expand-sm navbar-dark" style="background-color:#28a745;">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">Supermarket App</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#collapsibleNavbar">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="collapsibleNavbar">
+      <ul class="navbar-nav">
+        <% if (!user) { %>
+          <li class="nav-item"><a class="nav-link" href="/register">Register</a></li>
+          <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
+        <% } %>
+      </ul>
+      <ul class="navbar-nav ms-auto">
+        <% if (user && user.role === 'admin') { %>
+          <li class="nav-item"><a class="nav-link" href="/inventory">Inventory</a></li>
+          <li class="nav-item"><a class="nav-link" href="/addProduct">Add Product</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/orders">Orders</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+        <% } else if (user) { %>
+          <li class="nav-item"><a class="nav-link" href="/inventory">Products</a></li>
+          <li class="nav-item"><a class="nav-link" href="/cart">Cart</a></li>
+          <li class="nav-item"><a class="nav-link" href="/orders">My Orders</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+        <% } %>
+      </ul>
+    </div>
+  </div>
+</nav>
+<script>
+  // ensure page uses Bootstrap utilities for sticky footer without custom CSS
+  (function(){
+    try {
+      document.body.classList.add('d-flex','flex-column','min-vh-100');
+    } catch (e) { /* ignore when server-side rendering */ }
+  })();
+</script>
+<main class="flex-fill">

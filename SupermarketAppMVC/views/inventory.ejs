@@ -92,44 +92,7 @@
   </style>
 </head>
 <body>
-  <!-- Navbar -->
-  <nav class="navbar navbar-expand-sm navbar-dark">
-    <div class="container-fluid">
-      <a class="navbar-brand" href="/">Supermarket App</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#collapsibleNavbar">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="collapsibleNavbar">
-        <ul class="navbar-nav ms-auto">
-          <% if (user && user.role === 'admin') { %>
-            <li class="nav-item">
-              <a class="nav-link" href="/addProduct">Add Product</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/admin/orders">Orders</a>
-            </li>
-          <% } %>
-          <% if (user && user.role !== 'admin') { %>
-            <li class="nav-item">
-              <a class="nav-link" href="/cart">View Cart</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/orders">My Orders</a>
-            </li>
-          <% } %>
-          <% if (user) { %>
-            <li class="nav-item">
-              <a class="nav-link" href="/logout">Logout</a>
-            </li>
-          <% } else { %>
-            <li class="nav-item">
-              <a class="nav-link" href="/login">Login</a>
-            </li>
-          <% } %>
-        </ul>
-      </div>
-    </div>
-  </nav>
+  <%- include('partials/header') %>
 
   <!-- Page Content -->
   <div class="container">
@@ -204,6 +167,7 @@
       });
     })();
   </script>
+  <%- include('partials/footer') %>
   </div>
 </body>
 </html>

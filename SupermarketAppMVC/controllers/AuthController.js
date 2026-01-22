@@ -90,6 +90,20 @@ const AuthController = {
 
             // successful login: store minimal user in session
             req.session.user = { id: user.id, username: user.username, email: user.email, role: user.role };
+            // merge any session cart into DB-backed cart
+            try {
+                const Cart = require('../models/Cart');
+                await new Promise((resolve, reject) => {
+                    Cart.mergeSessionCart(user.id, req.session.cart || [], function(err) {
+                        if (err) return reject(err);
+                        // clear session cart after merge
+                        req.session.cart = [];
+                        resolve();
+                    });
+                });
+            } catch (e) {
+                console.error('Failed to merge session cart on login:', e);
+            }
             res.redirect('/inventory');
         });
     },

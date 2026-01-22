@@ -11,25 +11,7 @@
       background-color: #f8f9fa;
       color: #343a40;
     }
-
-    /* Navbar */
-    .navbar {
-      background-color: #28a745;
-    }
-
-    .navbar .nav-link,
-    .navbar .navbar-brand {
-      color: #ffffff;
-      font-weight: 500;
-    }
-
-    .navbar .nav-link:hover {
-      color: #d4edda;
-    }
-
-    /* Page heading */
-    h2 {
-      text-align: center;
+      <%- include('partials/header') %>
       margin: 30px 0;
       color: #28a745;
     }
@@ -129,6 +111,7 @@
     <div class="text-center mt-3">
       <a href="/" class="btn btn-secondary">Back</a>
     </div>
+  <%- include('partials/footer') %>
   </div>
 </body>
 </html>

@@ -281,50 +281,73 @@ const ProductController = {
 
 	// Checkout: create order with address, reduce stock, clear cart
 	checkout(req, res) {
-		const cart = req.session.cart || [];
-		if (cart.length === 0) {
-			if (req.flash) req.flash('error', 'Cart is empty');
-			return res.redirect('/cart');
-		}
-		const address = req.body.address || '';
-		const deliveryOption = req.body.deliveryOption || 'doorstep';
-		const deliveryFee = parseFloat(req.body.deliveryFee || 0) || 0;
-		const paymentMethod = req.body.paymentMethod || null;
 		const userId = req.session.user ? req.session.user.id : null;
-		const total = cart.reduce((s, it) => s + it.price * it.quantity, 0);
-		const finalTotal = total + (isNaN(deliveryFee) ? 0 : deliveryFee);
 
-		// First, attempt to reduce stock for each item sequentially
-		const processNext = (index) => {
-			if (index >= cart.length) {
-				// All stock reduced, create order
+		const processCart = (cart) => {
+			if (!cart || cart.length === 0) {
+				if (req.flash) req.flash('error', 'Cart is empty');
+				return res.redirect('/cart');
+			}
+
+			const address = req.body.address || '';
+			const deliveryOption = req.body.deliveryOption || 'doorstep';
+			const deliveryFee = parseFloat(req.body.deliveryFee || 0) || 0;
+			const paymentMethod = req.body.paymentMethod || null;
+			const total = cart.reduce((s, it) => s + it.price * it.quantity, 0);
+			const finalTotal = total + (isNaN(deliveryFee) ? 0 : deliveryFee);
+
+			// First, attempt to reduce stock for each item sequentially
+			const processNext = (index) => {
+				if (index >= cart.length) {
+					// All stock reduced, create order
 					Order.createOrder(userId, address, cart, finalTotal, deliveryOption, deliveryFee, paymentMethod, function(err, info) {
-					if (err) {
-						// Log detailed error and show message to user for debugging
-						console.error('Order creation failed:', err);
-						const msg = 'Failed to create order. ' + (err && err.message ? err.message : 'Please contact support.');
-						if (req.flash) req.flash('error', msg);
-						// render cart so user can try again (do not lose context)
-						return res.redirect('/cart');
-					}
+						if (err) {
+							console.error('Order creation failed:', err);
+							const msg = 'Failed to create order. ' + (err && err.message ? err.message : 'Please contact support.');
+							if (req.flash) req.flash('error', msg);
+							return res.redirect('/cart');
+						}
 						// success: clear cart and redirect to invoice page
-						req.session.cart = [];
+						if (userId) {
+							const Cart = require('../models/Cart');
+							Cart.clearCart(userId, function(){});
+						} else {
+							req.session.cart = [];
+						}
 						if (req.flash) req.flash('success', 'Checkout successful. Thank you for your purchase!');
 						return res.redirect(`/invoice/${info.orderId}`);
 					});
-				return;
-			}
-			const item = cart[index];
-			Product.reduceQuantity(item.id, item.quantity, function (err, info) {
+					return;
+				}
+				const item = cart[index];
+				Product.reduceQuantity(item.id, item.quantity, function (err, info) {
+					if (err) {
+						console.error('Checkout error on item:', item.id, err);
+						if (req.flash) req.flash('error', `Insufficient stock for ${item.productName}`);
+						return res.redirect('/cart');
+					}
+					processNext(index + 1);
+				});
+			};
+			processNext(0);
+		};
+
+		// load cart from DB for logged-in users, or from session for guests
+		if (userId) {
+			const Cart = require('../models/Cart');
+			Cart.getItemsByUser(userId, function(err, items) {
 				if (err) {
-					console.error('Checkout error on item:', item.id, err);
-					if (req.flash) req.flash('error', `Insufficient stock for ${item.productName}`);
+					console.error('Failed to load DB cart for checkout:', err);
+					if (req.flash) req.flash('error', 'Unable to load cart');
 					return res.redirect('/cart');
 				}
-				processNext(index + 1);
+				const cart = (items || []).map(it => ({ id: it.product_id, productName: it.product_name, quantity: it.quantity, price: it.price }));
+				processCart(cart);
 			});
-		};
-		processNext(0);
+		} else {
+			const cart = req.session.cart || [];
+			processCart(cart);
+		}
 	},
 
 	// Admin: list all orders and show delivery status
@@ -388,8 +411,10 @@ const ProductController = {
 		Product.deleteProduct(id, function (err, info) {
 			if (err) {
 				console.error('Error deleting product:', err);
-				return res.status(500).send('Error deleting product');
+				if (req.flash) req.flash('error', err.message || 'Error deleting product');
+				return res.redirect('/inventory');
 			}
+			if (req.flash) req.flash('success', 'Product deleted');
 			res.redirect('/inventory');
 		});
 	}

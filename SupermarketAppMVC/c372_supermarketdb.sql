@@ -111,3 +111,19 @@ CREATE TABLE `order_items` (
   PRIMARY KEY (`id`),
   INDEX (`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Table structure for table `cart_items`
+DROP TABLE IF EXISTS `cart_items`;
+CREATE TABLE `cart_items` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `product_name` varchar(255) DEFAULT NULL,
+  `quantity` int NOT NULL DEFAULT 1,
+  `price` double(10,2) NOT NULL DEFAULT 0.00,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX (`user_id`),
+  INDEX (`product_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

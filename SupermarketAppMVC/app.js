@@ -7,6 +7,7 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const app = express();
 const ProductController = require('./controllers/ProductController');
+const CartController = require('./controllers/CartController');
 const AuthController = require('./controllers/AuthController');
 const User = require('./models/User');
 
@@ -48,12 +49,26 @@ app.use((req, res, next) => {
     res.locals.user = req.session ? req.session.user : null;
     res.locals.errors = req.flash ? req.flash('error') : [];
     res.locals.messages = req.flash ? req.flash('success') : [];
+    // allow toggling custom stylesheet (default enabled)
+    res.locals.useCustomCss = app.locals.useCustomCss !== undefined ? app.locals.useCustomCss : true;
     next();
 });
+
+// default app-level flag for using custom CSS
+app.locals.useCustomCss = app.locals.useCustomCss !== undefined ? app.locals.useCustomCss : true;
 
 // Define routes
 // Root landing page - render with res.locals so templates can access session user
 app.get('/', (req, res) => res.render('index'));
+
+// Dev helper: toggle inclusion of custom CSS across the app
+app.get('/toggle-css', (req, res) => {
+    app.locals.useCustomCss = !app.locals.useCustomCss;
+    // update res.locals for immediate effect
+    res.locals.useCustomCss = app.locals.useCustomCss;
+    const referer = req.get('Referer') || '/';
+    res.redirect(referer);
+});
 
 // Simple auth guard for routes that require a logged-in user
 function requireLogin(req, res, next) {
@@ -86,12 +101,12 @@ app.get('/logout', (req, res) => AuthController.logout(req, res));
 // Add a new product (file upload handled by multer)
 app.post('/addProduct', upload.single('image'), (req, res) => ProductController.add(req, res));
 
-// Cart & checkout routes (require login)
-app.post('/add-to-cart/:id', requireLogin, (req, res) => ProductController.addToCart(req, res));
-app.get('/cart', requireLogin, (req, res) => ProductController.showCart(req, res));
-app.post('/cart/update/:id', requireLogin, (req, res) => ProductController.updateCartItem(req, res));
-app.post('/cart/remove/:id', requireLogin, (req, res) => ProductController.removeFromCart(req, res));
-app.post('/cart/clear', requireLogin, (req, res) => ProductController.clearCart(req, res));
+// Cart & checkout routes (require login for DB-backed operations)
+app.post('/add-to-cart/:id', (req, res) => CartController.addToCart(req, res));
+app.get('/cart', (req, res) => CartController.showCart(req, res));
+app.post('/cart/update/:id', (req, res) => CartController.updateCartItem(req, res));
+app.post('/cart/remove/:id', (req, res) => CartController.removeFromCart(req, res));
+app.post('/cart/clear', (req, res) => CartController.clearCart(req, res));
 // Checkout: render address form (GET) and process payment (POST)
 app.get('/checkout', requireLogin, (req, res) => ProductController.showCheckoutForm(req, res));
 app.post('/checkout', requireLogin, (req, res) => ProductController.checkout(req, res));

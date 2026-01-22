@@ -56,10 +56,19 @@ const Product = {
 
 	// Delete a product by ID
 	deleteProduct(id, callback) {
-		const sql = 'DELETE FROM products WHERE id = ?';
-		db.query(sql, [id], function (err, result) {
+		// Prevent deletion if product has been purchased (referenced in order_items)
+		const checkSql = 'SELECT COUNT(*) AS cnt FROM order_items WHERE product_id = ?';
+		db.query(checkSql, [id], function (err, results) {
 			if (err) return callback(err);
-			callback(null, { affectedRows: result.affectedRows });
+			const cnt = results && results[0] ? results[0].cnt : 0;
+			if (cnt > 0) {
+				return callback(new Error('Product cannot be deleted because it has been purchased'));
+			}
+			const sql = 'DELETE FROM products WHERE id = ?';
+			db.query(sql, [id], function (err2, result) {
+				if (err2) return callback(err2);
+				callback(null, { affectedRows: result.affectedRows });
+			});
 		});
 	},
 
