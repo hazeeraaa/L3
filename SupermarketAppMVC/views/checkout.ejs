@@ -149,10 +149,13 @@
             <label class="form-check-label" for="card">Debit / Credit Card</label>
           </div>
           <div class="form-check">
+            <input class="form-check-input" type="radio" name="paymentMethod" id="netsqr" value="netsqr">
+            <label class="form-check-label" for="netsqr">NETS QR</label>
+          </div>
+          <div class="form-check">
             <input class="form-check-input" type="radio" name="paymentMethod" id="paypalRadio" value="PayPal">
             <label class="form-check-label" for="paypalRadio">PayPal</label>
           </div>
-          <small class="form-text text-muted">No payment details required now — user will complete payment via chosen method.</small>
         </div>
 
         <!-- PayPal button container (shown when PayPal is selected) -->
@@ -162,6 +165,7 @@
         <input type="hidden" name="deliveryType" id="deliveryTypeInput" value="doorstep">
         <input type="hidden" name="deliveryFee" id="deliveryFeeInput" value="5.00">
         <input type="hidden" name="finalTotal" id="finalTotalInput" value="<%= total.toFixed(2) %>">
+        <input type="hidden" name="cartTotal" id="cartTotalInput" value="<%= total.toFixed(2) %>">
 
         <!-- BUTTONS -->
         <div class="mt-3 text-end">
@@ -240,7 +244,34 @@
           const radios = document.querySelectorAll('input[name="paymentMethod"]');
           radios.forEach(r => r.addEventListener('change', function(){
             showPaypal(this.id === 'paypalRadio');
+            // If NETS QR selected, ensure default form action will send to nets route
+            if (this.id === 'netsqr') {
+              // keep place order visible; form will be redirected to nets handler on submit
+              placeOrderBtn.style.display = 'inline-block';
+            }
           }));
+
+          // Intercept form submit: if NETS QR selected, change action to nets endpoint
+          const checkoutForm = document.querySelector('form[action="/checkout"]');
+          if (checkoutForm) {
+            checkoutForm.addEventListener('submit', function(e){
+              const selected = document.querySelector('input[name="paymentMethod"]:checked');
+              // keep cartTotal in sync with final total for NETS
+              const cartTotalInput = document.getElementById('cartTotalInput');
+              const finalTotalInputEl = document.getElementById('finalTotalInput');
+              if (cartTotalInput && finalTotalInputEl) {
+                cartTotalInput.value = finalTotalInputEl.value;
+              }
+              if (selected && selected.id === 'netsqr') {
+                // change form target to NETS QR request handler which will render QR
+                this.action = '/nets-qr/request';
+                // ensure method is POST (already is)
+              } else {
+                // restore default
+                this.action = '/checkout';
+              }
+            });
+          }
 
           // load PayPal SDK script dynamically using server-side client id
           const PAYPAL_CLIENT_ID = '<%= PAYPAL_CLIENT_ID %>' || '';
@@ -254,7 +285,8 @@
                   createOrder: function(data, actions) {
                     // ask server to create order (server computes total) using API route
                     const amount = document.getElementById('finalTotalInput').value || '0';
-                    return fetch('/api/paypal/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount }) }).then(res => res.json()).then(order => order.id);
+                    const deliveryFee = document.getElementById('deliveryFeeInput').value || '0';
+                    return fetch('/api/paypal/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, deliveryFee }) }).then(res => res.json()).then(order => order.id);
                   },
                   onApprove: function(data, actions) {
                     // capture on server and then redirect to invoice

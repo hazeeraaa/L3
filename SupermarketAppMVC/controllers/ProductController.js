@@ -449,6 +449,58 @@ const ProductController = {
 		}
 	},
 
+	// Finalize NETS QR order after server-to-server confirmation
+	async netsComplete(req, res) {
+		try {
+			const userId = req.session && req.session.user ? req.session.user.id : null;
+			let cartItems = [];
+			if (userId) {
+				const Cart = require('../models/Cart');
+				cartItems = await new Promise((resolve, reject) => Cart.getItemsByUser(userId, (err, items) => err ? reject(err) : resolve(items)));
+				cartItems = (cartItems || []).map(it => ({ id: it.product_id, productName: it.product_name, quantity: it.quantity, price: it.price }));
+			} else {
+				cartItems = req.session.cart || [];
+			}
+			if (!cartItems || cartItems.length === 0) return res.status(400).json({ error: 'Cart is empty' });
+
+			const address = req.body.address || '';
+			const deliveryType = req.body.deliveryType || 'doorstep';
+			const deliveryFee = parseFloat(req.body.deliveryFee || 0) || 0;
+			const subtotal = cartItems.reduce((s, it) => s + it.price * it.quantity, 0);
+			const finalTotal = subtotal + deliveryFee;
+
+			// reduce stock sequentially
+			const reduceNext = (idx) => new Promise((resolve, reject) => {
+				if (idx >= cartItems.length) return resolve();
+				const it = cartItems[idx];
+				require('../models/Product').reduceQuantity(it.id, it.quantity, function(err) {
+					if (err) return reject(err);
+					resolve(reduceNext(idx+1));
+				});
+			});
+
+			await reduceNext(0);
+
+			require('../models/Order').createOrder(userId, address, cartItems, finalTotal, deliveryType, deliveryFee, 'NETS', function(err, info) {
+				if (err) {
+					console.error('Failed to create Order after NETS success:', err);
+					return res.status(500).json({ error: 'Failed to create local order' });
+				}
+				// clear cart
+				if (userId) {
+					const Cart = require('../models/Cart');
+					Cart.clearCart(userId, function(){});
+				} else {
+					req.session.cart = [];
+				}
+				return res.json({ success: true, invoiceUrl: `/invoice/${info.orderId}` });
+			});
+		} catch (err) {
+			console.error('netsComplete error:', err);
+			return res.status(500).json({ error: 'Failed to finalize NETS order', message: err.message });
+		}
+	},
+
 	// Admin: list all orders and show delivery status
 	adminOrders(req, res) {
 		Order.getAllOrders(function(err, orders) {

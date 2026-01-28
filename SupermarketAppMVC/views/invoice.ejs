@@ -65,6 +65,7 @@
       <div>
         <p><strong>Customer:</strong> <%= order.user_email %></p>
         <p><strong>Address:</strong> <%= order.address %></p>
+        <p><strong>Payment Method:</strong> <%= order.payment_method || order.paymentMethod || 'N/A' %></p>
         <p><strong>Placed on:</strong> <%= order.created_at %></p>
         <p><strong>Status:</strong>
           <span class="badge bg-info text-dark"><%= order.status %></span>

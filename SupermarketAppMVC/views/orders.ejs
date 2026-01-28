@@ -29,6 +29,7 @@
           <div class="card-body">
             <h5 class="card-title">Order #<%= order.id %> - $<%= Number(order.total).toFixed(2) %></h5>
             <p class="card-text">Placed on: <%= order.created_at %> - Status: <%= order.status %></p>
+            <p class="card-text"><strong>Payment Method:</strong> <%= order.payment_method || order.paymentMethod || 'N/A' %></p>
             <ul>
               <% order.items.forEach(function(it){ %>
                 <li><%= it.product_name || it.productName %> — <%= it.quantity %> x $<%= Number(it.price).toFixed(2) %></li>

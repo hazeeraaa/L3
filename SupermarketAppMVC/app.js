@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const session = require('express-session');
 const flash = require('connect-flash');
+const axios = require('axios');
 // load environment variables from .env if present
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
@@ -162,6 +163,109 @@ app.post('/cart/clear', (req, res) => CartController.clearCart(req, res));
 // Checkout: render address form (GET) and process payment (POST)
 app.get('/checkout', requireLogin, (req, res) => ProductController.showCheckoutForm(req, res));
 app.post('/checkout', requireLogin, (req, res) => ProductController.checkout(req, res));
+
+const netsSvc = require('./services/nets');
+
+// NETS QR: generate QR for server-to-server NETS QR request
+app.post('/nets-qr/request', requireLogin, async (req, res) => {
+    console.log('Received /nets-qr/request from user:', req.session && req.session.user ? req.session.user.email || req.session.user.username || req.session.user.id : 'guest');
+    console.log('Request body preview:', { deliveryFee: req.body.deliveryFee, finalTotal: req.body.finalTotal, paymentMethod: req.body.paymentMethod });
+    try {
+        // call service and await in case it returns a promise
+        await netsSvc.generateQrCode(req, res);
+    } catch (err) {
+        console.error('nets-qr/request error (async):', err && err.stack ? err.stack : err);
+        if (req.flash) req.flash('error', 'Failed to start NETS QR payment: ' + (err && err.message ? err.message : 'internal error'));
+        return res.redirect('/checkout');
+    }
+});
+
+// Endpoint for finalizing NETS QR orders after server-to-server confirmation
+app.post('/nets-qr/complete', async (req, res) => {
+    // delegate to ProductController.netsComplete to create order and clear cart
+    return require('./controllers/ProductController').netsComplete(req, res);
+});
+
+// NETS QR fail page
+app.get('/nets-qr/fail', (req, res) => {
+    res.render('netsTxnFailStatus', {
+        title: 'Payment Failed',
+        message: 'Your payment could not be completed. Please try again or choose another payment method.',
+        responseCode: '',
+        instructions: ''
+    });
+});
+
+// SSE polling for NETS QR payment status
+app.get('/sse/payment-status/:txnRetrievalRef', async (req, res) => {
+    res.set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    });
+
+    const txnRetrievalRef = req.params.txnRetrievalRef;
+    let pollCount = 0;
+    const maxPolls = 60; // 5 minutes if polling every 5s
+    let frontendTimeoutStatus = 0;
+
+    const interval = setInterval(async () => {
+        pollCount++;
+
+        try {
+            // Call the NETS query API
+            const response = await axios.post(
+                'https://sandbox.nets.openapipaas.com/api/v1/common/payments/nets-qr/query',
+                { txn_retrieval_ref: txnRetrievalRef, frontend_timeout_status: frontendTimeoutStatus },
+                {
+                    headers: {
+                        'api-key': process.env.API_KEY,
+                        'project-id': process.env.PROJECT_ID,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log("Polling response:", response.data);
+            // Send the full response to the frontend
+            res.write(`data: ${JSON.stringify(response.data)}\n\n`);
+
+            const resData = response.data && response.data.result ? response.data.result.data : null;
+
+            // Decide when to end polling and close the connection
+            //Check if payment is successful
+            if (resData && resData.response_code == "00" && resData.txn_status === 1) {
+                // Payment success: send a success message
+                res.write(`data: ${JSON.stringify({ success: true })}\n\n`);
+                clearInterval(interval);
+                res.end();
+            } else if (frontendTimeoutStatus == 1 && resData && (resData.response_code !== "00" || resData.txn_status === 2)) {
+                // Payment failure: send a fail message
+                res.write(`data: ${JSON.stringify({ fail: true, ...resData })}\n\n`);
+                clearInterval(interval);
+                res.end();
+            }
+
+        } catch (err) {
+            clearInterval(interval);
+            res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+            res.end();
+        }
+
+
+        // Timeout
+        if (pollCount >= maxPolls) {
+            clearInterval(interval);
+            frontendTimeoutStatus = 1;
+            res.write(`data: ${JSON.stringify({ fail: true, error: "Timeout" })}\n\n`);
+            res.end();
+        }
+    }, 5000);
+
+    req.on('close', () => {
+        clearInterval(interval);
+    });
+});
 
 // User orders / invoices
 app.get('/orders', requireLogin, (req, res) => ProductController.userOrders(req, res));
